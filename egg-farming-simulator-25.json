@@ -1,0 +1,212 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED FOR PTERODACTYL PANEL - PTDL_v2",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-07-17T17:15:00-04:00",
+    "name": "Farming Simulator 25 Wine noVNC",
+    "author": "eggs@unrealstudios.ca",
+    "description": "Runs the Windows Farming Simulator 25 dedicated server under Wine. Includes a browser-based noVNC desktop for the required GIANTS license activation. Requires the companion fs25-pterodactyl Docker image and legally obtained GIANTS ESD installer/server license; no paid game files are included.",
+    "features": [],
+    "docker_images": {
+        "FS25 Wine noVNC": "ghcr.io/officialunrealnetwork/fs25-pterodactyl:latest"
+    },
+    "file_denylist": [],
+    "startup": "bash /usr/local/bin/ptero-start.sh",
+    "config": {
+        "files": "{}",
+        "startup": "{\"done\":\"FS25 wrapper ready\"}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\nset -euo pipefail\n\nmkdir -p /mnt/server/installer \\\n         /mnt/server/dlc \\\n         /mnt/server/game \\\n         /mnt/server/config \\\n         /mnt/server/setup-logs\n\ncat > /mnt/server/UPLOAD_INSTALLER_HERE.txt <<'EOF'\nFARMING SIMULATOR 25 SERVER SETUP\n=================================\n\n1. Download the Windows ESD installer from your GIANTS account.\n2. Upload the .img installer into the /installer folder.\n3. Start the server with AUTO_INSTALL=true and AUTOSTART_SERVER=false.\n4. Open the noVNC allocation (default port 6080) in a browser.\n5. Complete installation and activate the separate dedicated-server license.\n6. Restart the server and set AUTOSTART_SERVER=true.\n\nThe Steam edition is not supported by this image's installation flow.\nNo game or license files are downloaded by this egg.\nEOF\n\necho \"FS25 folder structure created successfully.\"\n",
+            "container": "ghcr.io/pelican-eggs/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Server name",
+            "description": "Name shown in the Farming Simulator server browser.",
+            "env_variable": "SERVER_NAME",
+            "default_value": "My FS25 Server",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Game password",
+            "description": "Password players use to join. Leave blank for no game password.",
+            "env_variable": "SERVER_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Admin password",
+            "description": "In-game administrator password.",
+            "env_variable": "SERVER_ADMIN",
+            "default_value": "ChangeMe-Admin",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:4|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Maximum players",
+            "description": "Maximum simultaneous players. Farming Simulator 25 supports up to 16.",
+            "env_variable": "SERVER_PLAYERS",
+            "default_value": "8",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,16",
+            "field_type": "text"
+        },
+        {
+            "name": "Map ID",
+            "description": "Map identifier. The default is MapUS; enter another compatible official or mod map identifier when needed.",
+            "env_variable": "SERVER_MAP",
+            "default_value": "MapUS",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:128",
+            "field_type": "text"
+        },
+        {
+            "name": "Difficulty",
+            "description": "Career difficulty preset: 1, 2, or 3.",
+            "env_variable": "SERVER_DIFFICULTY",
+            "default_value": "3",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,3",
+            "field_type": "text"
+        },
+        {
+            "name": "Language/region",
+            "description": "Server language code, such as en, fr, de, or es.",
+            "env_variable": "SERVER_REGION",
+            "default_value": "en",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:8",
+            "field_type": "text"
+        },
+        {
+            "name": "Crossplay",
+            "description": "Allow supported cross-platform players.",
+            "env_variable": "SERVER_CROSSPLAY",
+            "default_value": "true",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Web admin username",
+            "description": "Username for the Farming Simulator web administration page.",
+            "env_variable": "WEB_USERNAME",
+            "default_value": "admin",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:3|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Web admin password",
+            "description": "Password for the Farming Simulator web administration page.",
+            "env_variable": "WEB_PASSWORD",
+            "default_value": "ChangeMe-Web",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:6|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "noVNC password",
+            "description": "Password for the browser desktop used during installation and license activation.",
+            "env_variable": "VNC_PASSWORD",
+            "default_value": "ChangeMe-VNC",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:6|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Auto-install",
+            "description": "Automatically launch the interactive installer when an ESD image is found and setup is incomplete.",
+            "env_variable": "AUTO_INSTALL",
+            "default_value": "true",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Server startup mode",
+            "description": "false starts only the desktop; true starts the game and web admin; web_only starts only the web admin.",
+            "env_variable": "AUTOSTART_SERVER",
+            "default_value": "false",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:true,false,web_only",
+            "field_type": "text"
+        },
+        {
+            "name": "Dark web admin",
+            "description": "Use the dark theme in the FS25 web administration interface.",
+            "env_variable": "WEB_DARKMODE",
+            "default_value": "false",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Pause behavior",
+            "description": "FS25 dedicated server pause mode. The recommended dedicated-server default is 2.",
+            "env_variable": "SERVER_PAUSE",
+            "default_value": "2",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:0,2",
+            "field_type": "text"
+        },
+        {
+            "name": "Save interval",
+            "description": "Automatic save interval value passed to the dedicated server.",
+            "env_variable": "SERVER_SAVE_INTERVAL",
+            "default_value": "180.000000",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|numeric|min:30",
+            "field_type": "text"
+        },
+        {
+            "name": "Statistics interval",
+            "description": "Statistics interval value passed to the dedicated server.",
+            "env_variable": "SERVER_STATS_INTERVAL",
+            "default_value": "31536000",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|numeric|min:60",
+            "field_type": "text"
+        },
+        {
+            "name": "Browser title",
+            "description": "Title displayed on the noVNC browser tab.",
+            "env_variable": "WEBPAGE_TITLE",
+            "default_value": "Farming Simulator 25 Server",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:80",
+            "field_type": "text"
+        }
+    ]
+}

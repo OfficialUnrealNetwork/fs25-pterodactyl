@@ -24,7 +24,7 @@ touch "${SESSION_MARKER}"
 # Keep the original Pterodactyl console descriptors.
 exec 3>&1 4>&2
 
-# Put Wine, VNC, browser, DBus, and other desktop noise in a file.
+# Put Wine, VNC, browser, DBus, and desktop noise in a file.
 exec >> "${BOOT_LOG}" 2>&1
 
 print_console() {
@@ -42,6 +42,7 @@ print_console ""
 print_console " Admin     : http://${PUBLIC_HOST}:${WEB_PORT}"
 print_console " Join      : ${PUBLIC_HOST}:${GAME_PORT}"
 print_console " noVNC     : http://${PUBLIC_HOST}:${VNC_PORT}/vnc.html"
+print_console " Full boot : ${BOOT_LOG}"
 print_console " Logs      : PRETTY  (set Pretty console to false for raw)"
 print_console "------------------------------------------------------------"
 
@@ -73,7 +74,6 @@ print_console "------------------------------------------------------------"
                 fi
                 ;;
 
-            # Ignore known harmless desktop/container warnings.
             *"_XSERVTransmkdir:"*|\
             *"Could not get password database information"*|\
             *"Failed to start message bus"*|\
@@ -100,7 +100,7 @@ print_console "------------------------------------------------------------"
     done
 ) &
 
-# Report game process transitions without flooding the console.
+# Report game process transitions.
 (
     previous="offline"
 
@@ -124,7 +124,7 @@ print_console "------------------------------------------------------------"
     done
 ) &
 
-# Follow only dated logs created during this container session.
+# Follow only the current session's dated game log.
 (
     current_log=""
     tail_pid=""
@@ -148,20 +148,43 @@ print_console "------------------------------------------------------------"
 
             current_log="${newest_log}"
             printf '%s\n' "[GAME] Session log: $(basename "${current_log}")" >&3
+            printf '%s\n' "[GAME] Full log: ${current_log}" >&3
+            printf '%s\n' "[GAME] Pretty mode will summarize repetitive loading lines." >&3
 
             (
                 tail -n +1 -F -- "${current_log}" 2>/dev/null |
                 awk -v host="${PUBLIC_HOST}" -v port="${GAME_PORT}" '
+                    BEGIN {
+                        mods = 0
+                        assets = 0
+                    }
+
                     function clean(line) {
                         sub(/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9][[:space:]]+[0-9:.]+[[:space:]]+/, "", line)
                         sub(/^[[:space:]]+/, "", line)
                         return line
                     }
 
-                    /^Available mod:/ { next }
+                    /^Available mod:/ {
+                        mods++
+                        if (mods % 100 == 0) {
+                            print "[LOAD] Scanned " mods " mods..."
+                            fflush()
+                        }
+                        next
+                    }
+
+                    /\.i3d \([0-9.]+ ms\)$/ {
+                        assets++
+                        if (assets % 250 == 0) {
+                            print "[LOAD] Loaded " assets " map/assets entries..."
+                            fflush()
+                        }
+                        next
+                    }
+
                     /Register configuration/ { next }
                     /Register workAreaType/ { next }
-                    /\.i3d \([0-9.]+ ms\)$/ { next }
                     /^  Setting / { next }
                     /\[DirectStorage\]/ { next }
                     /GDeflate Compression Support/ { next }
@@ -213,7 +236,7 @@ print_console "------------------------------------------------------------"
                     /Info: Loading map:/ {
                         line=clean($0)
                         sub(/^Info: Loading map:[[:space:]]*/, "", line)
-                        print "[GAME] Loading map: " line
+                        print "[LOAD] Loading map: " line
                         fflush()
                         next
                     }

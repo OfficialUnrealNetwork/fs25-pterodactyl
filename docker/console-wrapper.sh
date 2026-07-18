@@ -3,44 +3,54 @@ set -Eeo pipefail
 
 LOG_DIR="/home/container/config/FarmingSimulator2025"
 BOOT_LOG="${LOG_DIR}/pterodactyl-startup.log"
+SESSION_MARKER="/tmp/fs25-console-session-start"
 
 mkdir -p "${LOG_DIR}"
 : > "${BOOT_LOG}"
+touch "${SESSION_MARKER}"
 
-echo "============================================================"
-echo " Farming Simulator 25 Server"
-echo " Game port: ${SERVER_PORT:-10823}"
-echo " Web panel: port 7999"
-echo "============================================================"
-echo "[FS25] Starting services..."
+# Preserve the real Pterodactyl console descriptors.
+exec 3>&1 4>&2
 
-# Display only useful startup messages.
+# Send all noisy Wine, VNC and desktop output into a file.
+exec >> "${BOOT_LOG}" 2>&1
+
+cat >&3 <<EOF
+============================================================
+ Farming Simulator 25 Server
+ Game port: ${SERVER_PORT:-10823}
+ Web panel: port 7999
+============================================================
+[FS25] Starting web administration...
+EOF
+
+# Show only useful container startup messages.
 (
     tail -n 0 -F "${BOOT_LOG}" 2>/dev/null |
     awk '
         /Preserving existing/ ||
+        /Creating initial/ ||
+        /Waiting for the webserver/ ||
         /Webserver link up/ ||
-        /Started network game/ ||
         /Starting game/ ||
-        /ERROR/ ||
-        /Error:/ ||
-        /FATAL/ ||
-        /Fatal/ ||
-        /failed/ {
+        /ERROR:/ ||
+        /FATAL:/ {
             print;
             fflush();
         }
     '
-) &
+) >&3 &
 
-# Automatically follow the newest dated FS25 log.
+# Follow only logs created or changed during this container session.
 (
     current_log=""
     tail_pid=""
 
     while true; do
         newest_log="$(
-            find "${LOG_DIR}" -maxdepth 1 -type f -name 'log_*.txt' \
+            find "${LOG_DIR}" -maxdepth 1 -type f \
+                \( -name 'log.txt' -o -name 'log_*.txt' \) \
+                -newer "${SESSION_MARKER}" \
                 -printf '%T@|%p\n' 2>/dev/null |
             sort -n |
             tail -n 1 |
@@ -55,40 +65,59 @@ echo "[FS25] Starting services..."
 
             current_log="${newest_log}"
 
-            echo ""
-            echo "[FS25] Following game log: $(basename "${current_log}")"
-            echo "------------------------------------------------------------"
+            {
+                echo ""
+                echo "[FS25] Game process started"
+                echo "[FS25] Log: $(basename "${current_log}")"
+                echo "------------------------------------------------------------"
+            } >&3
 
             (
-                tail -n 0 -F -- "${current_log}" 2>/dev/null |
+                tail -n +1 -F -- "${current_log}" 2>/dev/null |
                 awk '
                     /^Available mod:/ { next }
                     /Register configuration/ { next }
                     /Register workAreaType/ { next }
                     /\.i3d \([0-9.]+ ms\)$/ { next }
                     /^  Setting / { next }
-                    /^  Recommended Window Size:/ { next }
-                    /^  UI Scaling Factor:/ { next }
-                    /^  3D Scaling Factor:/ { next }
-                    /^  View Distance Factor:/ { next }
-                    /^  LOD Distance Factor:/ { next }
-                    /^  Foliage/ { next }
-                    /^  Shadow/ { next }
-                    /^  Texture/ { next }
-                    /^  Max\. Number/ { next }
-                    /^  AMD / { next }
-                    /^  Intel / { next }
-                    /^  DLSS / { next }
-                    /^  DRS / { next }
-                    /GDeflate Compression Support/ { next }
-                    /^\[DirectStorage\]/ { next }
+                    /DirectStorage/ { next }
+                    /GDeflate/ { next }
+                    /Glycin/ { next }
+                    /DBus/ { next }
+                    /ALSA/ { next }
+                    /glxtest/ { next }
+                    /Sandbox:/ { next }
+                    /XKEYBOARD/ { next }
+                    /_XSERVTrans/ { next }
 
-                    {
+                    /Farming Simulator 25 \(Server\)/ ||
+                    /Game-Version:/ ||
+                    /Starting dedicated server/ ||
+                    /Starting multiplayer server/ ||
+                    /Started network game/ ||
+                    /STARTING MP Game/ ||
+                    /Loading map:/ ||
+                    /Loading savegame/ ||
+                    /Savegame/ ||
+                    /Saving/ ||
+                    /saved/ ||
+                    /connected/ ||
+                    /disconnected/ ||
+                    /joined/ ||
+                    /left the game/ ||
+                    /kicked/ ||
+                    /banned/ ||
+                    /Error/ ||
+                    /ERROR/ ||
+                    /Warning/ ||
+                    /WARNING/ ||
+                    /failed/ ||
+                    /Exception/ {
                         print;
                         fflush();
                     }
                 '
-            ) &
+            ) >&3 &
 
             tail_pid=$!
         fi
@@ -102,5 +131,4 @@ echo "[FS25] Starting services..."
     done
 ) &
 
-# Run the real server while storing noisy startup output separately.
-exec /usr/local/bin/ptero-entrypoint.sh >> "${BOOT_LOG}" 2>&1
+exec /usr/local/bin/ptero-entrypoint.sh

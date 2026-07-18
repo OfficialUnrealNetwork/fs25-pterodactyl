@@ -75,9 +75,11 @@ USER container
 EXPOSE 10823/tcp 10823/udp 6080/tcp 7999/tcp 5900/tcp
 
 # Stream the FS25 game log into the Pterodactyl console
+
+# Pterodactyl console and startup-variable integration
+COPY --chmod=755 apply-pterodactyl-config.py /usr/local/bin/apply-pterodactyl-config.py
+COPY --chmod=755 copy_server_config.sh /usr/local/bin/copy_server_config.sh
 COPY --chmod=755 console-wrapper.sh /usr/local/bin/console-wrapper.sh
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/local/bin/console-wrapper.sh"]
-
 # Preserve FS25 configuration across container restarts
-COPY --chmod=755 copy_server_config.sh /usr/local/bin/copy_server_config.sh

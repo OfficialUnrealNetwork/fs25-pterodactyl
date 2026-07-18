@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply Pterodactyl startup variables to the active FS25 XML files."""
+"""Apply Pterodactyl Startup variables to active FS25 XML configuration files."""
 
 from __future__ import annotations
 
@@ -27,23 +27,22 @@ def bool_text(name: str, default: str = "false") -> str:
     return "true" if value in {"1", "true", "yes", "on"} else "false"
 
 
-def update_xml(path: Path, values: dict[str, str]) -> list[str]:
+def update_xml(path: Path, values: dict[str, str]) -> int:
     if not path.is_file():
         raise FileNotFoundError(f"Configuration file does not exist: {path}")
 
     tree = ET.parse(path)
     root = tree.getroot()
-    changed: list[str] = []
+    changed = 0
 
     for tag, value in values.items():
         node = root.find(f".//{tag}")
         if node is None:
             raise RuntimeError(f"Missing <{tag}> in {path}")
 
-        current = node.text or ""
-        if current != value:
+        if (node.text or "") != value:
             node.text = value
-            changed.append(tag)
+            changed += 1
 
     if changed:
         ET.indent(tree, space="  ")
@@ -75,26 +74,24 @@ def main() -> int:
         "passphrase": env("WEB_PASSWORD", "ChangeMe-Web"),
     }
 
-    game_changed = update_xml(GAME_CONFIG, game_values)
-    web_changed = update_xml(WEB_CONFIG, web_values)
+    changed = update_xml(GAME_CONFIG, game_values)
+    changed += update_xml(WEB_CONFIG, web_values)
 
-    print("[FS25 CONFIG] Pterodactyl Startup settings applied.")
-    print(f"[FS25 CONFIG] Server name: {game_values['game_name']}")
-    print(
-        "[FS25 CONFIG] Crossplay: "
-        + ("enabled" if game_values["crossplay_allowed"] == "true" else "disabled")
+    password_state = "ON" if game_values["game_password"] else "OFF"
+    crossplay_state = (
+        "ON" if game_values["crossplay_allowed"] == "true" else "OFF"
     )
-    print(
-        "[FS25 CONFIG] Game password: "
-        + ("enabled" if game_values["game_password"] else "disabled")
+
+    summary = (
+        f'name="{game_values["game_name"]}"'
+        f' | players={game_values["max_player"]}'
+        f' | crossplay={crossplay_state}'
+        f' | password={password_state}'
+        f' | map={game_values["mapID"]}'
+        f' | port={game_values["port"]}'
+        f' | changed={changed}'
     )
-    print(f"[FS25 CONFIG] Players: {game_values['max_player']}")
-    print(f"[FS25 CONFIG] Map: {game_values['mapID']}")
-    print(f"[FS25 CONFIG] Port: {game_values['port']}")
-    print(
-        "[FS25 CONFIG] Updated XML fields: "
-        + str(len(game_changed) + len(web_changed))
-    )
+    print(f"[FS25 CONFIG] SUMMARY {summary}")
     return 0
 
 

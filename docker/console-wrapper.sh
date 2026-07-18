@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -Eeo pipefail
 
-pretty_logs="${PRETTY_LOGS:-true}"
-case "${pretty_logs,,}" in
-    false|0|no|off|raw)
+case "${PRETTY_LOGS:-true}" in
+    false|FALSE|0|no|NO|off|OFF|raw|RAW)
         echo "[FS25] Raw console mode enabled."
         exec /usr/local/bin/ptero-entrypoint.sh
         ;;
@@ -12,105 +11,120 @@ esac
 LOG_DIR="/home/container/config/FarmingSimulator2025"
 BOOT_LOG="${LOG_DIR}/pterodactyl-startup.log"
 SESSION_MARKER="/tmp/fs25-console-session-start"
+
 PUBLIC_HOST="${PUBLIC_HOST:-node1.unrealcorp.net}"
 GAME_PORT="${SERVER_PORT:-10823}"
 WEB_PORT="7999"
 VNC_PORT="6080"
 
-RESET=$'\033[0m'
-BOLD=$'\033[1m'
-BLUE=$'\033[36m'
-GREEN=$'\033[32m'
-YELLOW=$'\033[33m'
-RED=$'\033[31m'
-DIM=$'\033[2m'
-
 mkdir -p "${LOG_DIR}"
 : > "${BOOT_LOG}"
 touch "${SESSION_MARKER}"
 
-# Keep clean-console output on the original Pterodactyl descriptors.
+# Keep the original Pterodactyl console descriptors.
 exec 3>&1 4>&2
 
-printf '%s\n' "${BLUE}${BOLD}â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—${RESET}" >&3
-printf '%s\n' "${BLUE}${BOLD}â•‘              FARMING SIMULATOR 25 SERVER                  â•‘${RESET}" >&3
-printf '%s\n' "${BLUE}${BOLD}â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•${RESET}" >&3
-printf '%s\n' "${GREEN}â— Pterodactyl container: ONLINE${RESET}" >&3
-printf '%s\n' "${YELLOW}â— Game server: OFFLINE â€” waiting for the web panel${RESET}" >&3
-printf '%s\n' "" >&3
-printf '%s\n' "${BOLD}Quick links${RESET}" >&3
-printf '%s\n' "  Admin panel : http://${PUBLIC_HOST}:${WEB_PORT}" >&3
-printf '%s\n' "  noVNC       : http://${PUBLIC_HOST}:${VNC_PORT}/vnc.html?autoconnect=1&resize=remote" >&3
-printf '%s\n' "  Game address: ${PUBLIC_HOST}:${GAME_PORT}" >&3
-printf '%s\n' "" >&3
-printf '%s\n' "${DIM}Set â€œPretty consoleâ€ to OFF in Startup to show every raw log line.${RESET}" >&3
-printf '%s\n' "------------------------------------------------------------" >&3
-
-# Hide Wine, VNC, DBus, Firefox, and desktop noise in a file.
+# Put Wine, VNC, browser, DBus, and other desktop noise in a file.
 exec >> "${BOOT_LOG}" 2>&1
 
-# Surface only useful service startup messages.
-(
-    panel_announced=0
+print_console() {
+    printf '%s\n' "$1" >&3
+}
 
-    while IFS= read -r line; do
+print_console ""
+print_console "============================================================"
+print_console " FARMING SIMULATOR 25"
+print_console "============================================================"
+print_console " Container : ONLINE"
+print_console " Game      : OFFLINE"
+print_console " Web panel : STARTING"
+print_console ""
+print_console " Admin     : http://${PUBLIC_HOST}:${WEB_PORT}"
+print_console " Join      : ${PUBLIC_HOST}:${GAME_PORT}"
+print_console " noVNC     : http://${PUBLIC_HOST}:${VNC_PORT}/vnc.html"
+print_console " Logs      : PRETTY  (set Pretty console to false for raw)"
+print_console "------------------------------------------------------------"
+
+# Print only useful startup events from the hidden boot log.
+(
+    web_announced=0
+    config_announced=0
+
+    tail -n 0 -F "${BOOT_LOG}" 2>/dev/null | while IFS= read -r line; do
         case "${line}" in
-            "FS25 wrapper ready")
-                # Keep the egg's startup completion marker visible.
-                printf '%s\n' "FS25 wrapper ready"
-                ;;
-            *"[FS25 CONFIG] Pterodactyl Startup settings applied."*)
-                printf '%s\n' "${GREEN}âœ“ Startup settings applied to FS25${RESET}"
-                ;;
-            *"[FS25 CONFIG] Server name:"*)
-                printf '%s\n' "${BLUE}${line}${RESET}"
-                ;;
-            *"[FS25 CONFIG] Crossplay:"*|*"[FS25 CONFIG] Game password:"*|*"[FS25 CONFIG] Players:"*|*"[FS25 CONFIG] Map:"*|*"[FS25 CONFIG] Port:"*)
-                printf '%s\n' "${DIM}${line}${RESET}"
-                ;;
-            *"Waiting for the webserver to start"*)
-                printf '%s\n' "${YELLOW}â€¦ Starting FS25 web administration${RESET}"
-                ;;
-            *"Webserver link up"*)
-                if [[ "${panel_announced}" -eq 0 ]]; then
-                    panel_announced=1
-                    printf '%s\n' "${GREEN}âœ“ Web panel is now available${RESET}"
-                    printf '%s\n' "  Open: http://${PUBLIC_HOST}:${WEB_PORT}"
-                    printf '%s\n' "${YELLOW}  Game server is OFFLINE â€” click Start in the web panel.${RESET}"
+            *"[FS25 CONFIG] SUMMARY "*)
+                if [[ "${config_announced}" -eq 0 ]]; then
+                    config_announced=1
+                    summary="${line#*SUMMARY }"
+                    printf '[CONFIG] %s\n' "${summary}" >&3
                 fi
                 ;;
-            *"ERROR:"*|*"FATAL:"*|*"Traceback"*|*"Unhandled exception"*)
-                printf '%s\n' "${RED}âœ– ${line}${RESET}"
+
+            *"Waiting for the webserver to start"*)
+                printf '%s\n' "[WEB] Starting administration panel..." >&3
+                ;;
+
+            *"Webserver link up"*)
+                if [[ "${web_announced}" -eq 0 ]]; then
+                    web_announced=1
+                    printf '%s\n' "[WEB] AVAILABLE - http://${PUBLIC_HOST}:${WEB_PORT}" >&3
+                    printf '%s\n' "[GAME] OFFLINE - click Start in the web panel" >&3
+                    printf '%s\n' "------------------------------------------------------------" >&3
+                fi
+                ;;
+
+            # Ignore known harmless desktop/container warnings.
+            *"_XSERVTransmkdir:"*|\
+            *"Could not get password database information"*|\
+            *"Failed to start message bus"*|\
+            *"EOF in dbus-launch"*|\
+            *"CanCreateUserNamespace"*|\
+            *"glxtest:"*|\
+            *"Glycin running without sandbox"*|\
+            *"Failed to create DBus proxy"*|\
+            *"ALSA lib"*|\
+            *"websockify/websocket.py"*|\
+            *"Could not resolve keysym"*|\
+            *"Errors from xkbcomp are not fatal"*|\
+            *"mieq: warning"*|\
+            *"Broken pipe"*)
+                ;;
+
+            *"[FS25 CONFIG] ERROR:"*|\
+            *"FATAL:"*|\
+            *"Unhandled exception"*|\
+            *"Traceback (most recent call last)"*)
+                printf '[ERROR] %s\n' "${line}" >&3
                 ;;
         esac
-    done < <(tail -n 0 -F "${BOOT_LOG}" 2>/dev/null)
-) >&3 &
+    done
+) &
 
-# Show game process state transitions.
+# Report game process transitions without flooding the console.
 (
-    last_state=""
+    previous="offline"
 
     while true; do
         if pgrep -fa '[F]armingSimulator2025Game.exe' >/dev/null 2>&1; then
-            state="starting"
+            current="starting"
         else
-            state="offline"
+            current="offline"
         fi
 
-        if [[ "${state}" != "${last_state}" ]]; then
-            if [[ "${state}" == "starting" ]]; then
-                printf '%s\n' "${YELLOW}â— Game process: STARTING â€” loading savegame/map${RESET}"
-            elif [[ -n "${last_state}" ]]; then
-                printf '%s\n' "${RED}â— Game server: OFFLINE${RESET}"
+        if [[ "${current}" != "${previous}" ]]; then
+            if [[ "${current}" == "starting" ]]; then
+                printf '%s\n' "[GAME] STARTING - loading the selected savegame" >&3
+            else
+                printf '%s\n' "[GAME] OFFLINE" >&3
             fi
-            last_state="${state}"
+            previous="${current}"
         fi
 
         sleep 3
     done
-) >&3 &
+) &
 
-# Follow only the current session's rotating game log and filter startup spam.
+# Follow only dated logs created during this container session.
 (
     current_log=""
     tail_pid=""
@@ -118,7 +132,7 @@ exec >> "${BOOT_LOG}" 2>&1
     while true; do
         newest_log="$(
             find "${LOG_DIR}" -maxdepth 1 -type f \
-                \( -name 'log.txt' -o -name 'log_*.txt' \) \
+                -name 'log_*.txt' \
                 -newer "${SESSION_MARKER}" \
                 -printf '%T@|%p\n' 2>/dev/null |
             sort -n |
@@ -133,27 +147,22 @@ exec >> "${BOOT_LOG}" 2>&1
             fi
 
             current_log="${newest_log}"
-            printf '%s\n' "" >&3
-            printf '%s\n' "${BLUE}${BOLD}FS25 GAME CONSOLE${RESET}" >&3
-            printf '%s\n' "${DIM}Following: $(basename "${current_log}")${RESET}" >&3
-            printf '%s\n' "------------------------------------------------------------" >&3
+            printf '%s\n' "[GAME] Session log: $(basename "${current_log}")" >&3
 
             (
                 tail -n +1 -F -- "${current_log}" 2>/dev/null |
-                awk \
-                    -v reset="${RESET}" \
-                    -v blue="${BLUE}" \
-                    -v green="${GREEN}" \
-                    -v yellow="${YELLOW}" \
-                    -v red="${RED}" \
-                    -v host="${PUBLIC_HOST}" \
-                    -v port="${GAME_PORT}" '
+                awk -v host="${PUBLIC_HOST}" -v port="${GAME_PORT}" '
+                    function clean(line) {
+                        sub(/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9][[:space:]]+[0-9:.]+[[:space:]]+/, "", line)
+                        sub(/^[[:space:]]+/, "", line)
+                        return line
+                    }
+
                     /^Available mod:/ { next }
                     /Register configuration/ { next }
                     /Register workAreaType/ { next }
                     /\.i3d \([0-9.]+ ms\)$/ { next }
                     /^  Setting / { next }
-                    /^  (Recommended Window Size|UI Scaling Factor|3D Scaling Factor|View Distance Factor|LOD Distance Factor|Foliage|Shadow|Texture|Max\. Number|AMD |Intel |DLSS |DRS )/ { next }
                     /\[DirectStorage\]/ { next }
                     /GDeflate Compression Support/ { next }
                     /ImageDescIndexer/ { next }
@@ -170,34 +179,31 @@ exec >> "${BOOT_LOG}" 2>&1
                     /^    (profile|server|name|exe) / { next }
 
                     /Farming Simulator 25 \(Server\)/ {
-                        print blue "â—† Farming Simulator 25 dedicated server launched" reset
+                        print "[GAME] Dedicated server launched"
                         fflush()
                         next
                     }
 
                     /Game-Version:/ {
-                        line=$0
-                        sub(/^[[:space:]]+/, "", line)
-                        print blue "â—† " line reset
+                        print "[GAME] " clean($0)
                         fflush()
                         next
                     }
 
                     /Starting dedicated server without an admin password/ {
-                        print yellow "âš  In-game admin password is empty" reset
+                        print "[WARNING] In-game admin password is empty"
                         fflush()
                         next
                     }
 
                     /Starting multiplayer server game/ {
-                        print yellow "â— Multiplayer session is starting" reset
+                        print "[GAME] Multiplayer session is starting"
                         fflush()
                         next
                     }
 
                     /Started network game \(/ {
-                        print green "â— Game server: ONLINE" reset
-                        print green "  Join address: " host ":" port reset
+                        print "[GAME] ONLINE - " host ":" port
                         fflush()
                         next
                     }
@@ -205,40 +211,35 @@ exec >> "${BOOT_LOG}" 2>&1
                     /STARTING MP Game/ { next }
 
                     /Info: Loading map:/ {
-                        line=$0
-                        sub(/^.*Info: Loading map:[[:space:]]*/, "", line)
-                        print yellow "â€¦ Loading map: " line reset
+                        line=clean($0)
+                        sub(/^Info: Loading map:[[:space:]]*/, "", line)
+                        print "[GAME] Loading map: " line
                         fflush()
                         next
                     }
 
                     /Loading savegame|Savegame loaded|Saving|saved successfully|Game saved/ {
-                        print green "âœ“ " $0 reset
+                        print "[SAVE] " clean($0)
                         fflush()
                         next
                     }
 
                     /connected|disconnected| joined | left the game|kicked|banned/ {
-                        print blue "â—† " $0 reset
+                        print "[PLAYER] " clean($0)
                         fflush()
                         next
                     }
 
                     /Error|ERROR|Exception|failed|Failure/ {
-                        print red "âœ– " $0 reset
+                        print "[ERROR] " clean($0)
                         fflush()
                         next
                     }
 
                     /Warning|WARNING/ {
-                        print yellow "âš  " $0 reset
+                        print "[WARNING] " clean($0)
                         fflush()
                         next
-                    }
-
-                    /^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ {
-                        print $0
-                        fflush()
                     }
                 '
             ) &
@@ -253,6 +254,6 @@ exec >> "${BOOT_LOG}" 2>&1
 
         sleep 2
     done
-) >&3 &
+) &
 
 exec /usr/local/bin/ptero-entrypoint.sh

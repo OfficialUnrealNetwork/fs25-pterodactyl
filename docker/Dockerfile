@@ -18,8 +18,13 @@ RUN set -eux; \
 
 COPY --chown=root:root ptero-entrypoint.sh /usr/local/bin/ptero-entrypoint.sh
 COPY --chown=root:root ptero-start.sh /usr/local/bin/ptero-start.sh
+COPY --chown=root:root ptero-setup-fs25.sh /usr/local/bin/ptero-setup-fs25.sh
 
-RUN chmod 0755 /usr/local/bin/ptero-entrypoint.sh /usr/local/bin/ptero-start.sh
+RUN set -eux; \
+    test -f /usr/local/bin/setup_fs25.sh; \
+    mv /usr/local/bin/setup_fs25.sh /usr/local/bin/setup_fs25-upstream.sh; \
+    mv /usr/local/bin/ptero-setup-fs25.sh /usr/local/bin/setup_fs25.sh; \
+    chmod 0755 /usr/local/bin/ptero-entrypoint.sh /usr/local/bin/ptero-start.sh /usr/local/bin/setup_fs25.sh /usr/local/bin/setup_fs25-upstream.sh
 
 ENV HOME=/home/container \
     USER=container \

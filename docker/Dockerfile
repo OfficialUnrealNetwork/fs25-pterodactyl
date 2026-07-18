@@ -2,6 +2,14 @@ FROM toetje585/arch-fs25server:latest
 
 USER root
 
+# The GIANTS ESD installer is distributed as a large IMG archive.
+# Install the current Arch Linux 7zip package, which provides /usr/bin/7z.
+RUN set -eux; \
+    pacman -Syu --noconfirm --needed 7zip; \
+    command -v 7z; \
+    pacman -Scc --noconfirm; \
+    rm -rf /var/cache/pacman/pkg/* /var/lib/pacman/sync/*
+
 # Adapt the upstream FS25 Wine/noVNC image to Pterodactyl's persistent
 # /home/container volume and standard container user.
 RUN set -eux; \

@@ -20,11 +20,23 @@ COPY --chown=root:root ptero-entrypoint.sh /usr/local/bin/ptero-entrypoint.sh
 COPY --chown=root:root ptero-start.sh /usr/local/bin/ptero-start.sh
 COPY --chown=root:root ptero-setup-fs25.sh /usr/local/bin/ptero-setup-fs25.sh
 
+# Windows checkouts can convert shell scripts to CRLF. Strip carriage returns
+# inside the image so Linux can execute the shebangs reliably.
 RUN set -eux; \
+    sed -i 's/\r$//' \
+      /usr/local/bin/ptero-entrypoint.sh \
+      /usr/local/bin/ptero-start.sh \
+      /usr/local/bin/ptero-setup-fs25.sh; \
     test -f /usr/local/bin/setup_fs25.sh; \
     mv /usr/local/bin/setup_fs25.sh /usr/local/bin/setup_fs25-upstream.sh; \
     mv /usr/local/bin/ptero-setup-fs25.sh /usr/local/bin/setup_fs25.sh; \
-    chmod 0755 /usr/local/bin/ptero-entrypoint.sh /usr/local/bin/ptero-start.sh /usr/local/bin/setup_fs25.sh /usr/local/bin/setup_fs25-upstream.sh
+    chmod 0755 \
+      /usr/local/bin/ptero-entrypoint.sh \
+      /usr/local/bin/ptero-start.sh \
+      /usr/local/bin/setup_fs25.sh \
+      /usr/local/bin/setup_fs25-upstream.sh; \
+    test -x /usr/local/bin/ptero-entrypoint.sh; \
+    head -n 1 /usr/local/bin/ptero-entrypoint.sh | grep -qx '#!/bin/bash'
 
 ENV HOME=/home/container \
     USER=container \

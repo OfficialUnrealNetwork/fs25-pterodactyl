@@ -2,13 +2,27 @@ FROM toetje585/arch-fs25server:latest
 
 USER root
 
-# The GIANTS ESD installer is distributed as a large IMG archive.
-# Install the current Arch Linux 7zip package, which provides /usr/bin/7z.
+# Do not run pacman -Syu in this inherited rolling-release image.
+# Updating Arch underneath the upstream Wine/noVNC stack can replace shared
+# libraries and Python while leaving upstream-installed binaries behind.
+# Instead, add the official standalone 7-Zip Linux console binary only.
+ADD https://github.com/ip7z/7zip/releases/download/26.02/7z2602-linux-x64.tar.xz /tmp/7zip-linux-x64.tar.xz
+
 RUN set -eux; \
-    pacman -Syu --noconfirm --needed 7zip; \
-    command -v 7z; \
-    pacman -Scc --noconfirm; \
-    rm -rf /var/cache/pacman/pkg/* /var/lib/pacman/sync/*
+    echo '41aaba7b1235304ab5aa0624530c67ae829496cd29e875925271efdccc28c03e  /tmp/7zip-linux-x64.tar.xz' | sha256sum -c -; \
+    mkdir -p /tmp/7zip; \
+    tar -xJf /tmp/7zip-linux-x64.tar.xz -C /tmp/7zip; \
+    if [ -f /tmp/7zip/7zzs ]; then \
+        install -m 0755 /tmp/7zip/7zzs /usr/local/bin/7zz; \
+    elif [ -f /tmp/7zip/7zz ]; then \
+        install -m 0755 /tmp/7zip/7zz /usr/local/bin/7zz; \
+    else \
+        echo 'Official 7-Zip archive did not contain 7zzs or 7zz.' >&2; \
+        exit 1; \
+    fi; \
+    ln -sfn /usr/local/bin/7zz /usr/local/bin/7z; \
+    /usr/local/bin/7z i >/dev/null; \
+    rm -rf /tmp/7zip /tmp/7zip-linux-x64.tar.xz
 
 # Adapt the upstream FS25 Wine/noVNC image to Pterodactyl's persistent
 # /home/container volume and standard container user.
@@ -44,7 +58,11 @@ RUN set -eux; \
       /usr/local/bin/setup_fs25.sh \
       /usr/local/bin/setup_fs25-upstream.sh; \
     test -x /usr/local/bin/ptero-entrypoint.sh; \
-    head -n 1 /usr/local/bin/ptero-entrypoint.sh | grep -qx '#!/bin/bash'
+    head -n 1 /usr/local/bin/ptero-entrypoint.sh | grep -qx '#!/bin/bash'; \
+    ldd /usr/bin/Xvnc | tee /tmp/xvnc-libraries.txt; \
+    ! grep -q 'not found' /tmp/xvnc-libraries.txt; \
+    python3 -c 'import importlib.metadata as m; print("websockify=" + m.version("websockify"))'; \
+    rm -f /tmp/xvnc-libraries.txt
 
 ENV HOME=/home/container \
     USER=container \
